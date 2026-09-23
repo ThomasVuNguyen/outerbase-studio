@@ -47,37 +47,56 @@ export default function PlaygroundEditorBody() {
     async function init() {
       const duckdb = await import("@duckdb/duckdb-wasm");
 
-      // Define local self-hosted bundles (served from /duckdb/)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const LOCAL_BUNDLES: Record<string, any> = {
-        mvp: {
-          mainModule: "/duckdb/duckdb-mvp.wasm",
-          mainWorker: "/duckdb/duckdb-browser-mvp.worker.js",
-        },
-        eh: {
-          mainModule: "/duckdb/duckdb-eh.wasm",
-          mainWorker: "/duckdb/duckdb-browser-eh.worker.js",
-        },
+      let database: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let connection: any;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const instantiateBundle = async (selectedBundle: any) => {
+        let worker: Worker;
+        try {
+          worker = await duckdb.createWorker(selectedBundle.mainWorker!);
+        } catch {
+          const workerRes = await fetch(selectedBundle.mainWorker!);
+          const workerBlob = await workerRes.blob();
+          worker = new Worker(URL.createObjectURL(workerBlob));
+        }
+
+        const logger = new duckdb.ConsoleLogger();
+        const dbInstance = new duckdb.AsyncDuckDB(logger, worker);
+        await dbInstance.instantiate(selectedBundle.mainModule, selectedBundle.pthreadWorker);
+        const connInstance = await dbInstance.connect();
+        return { dbInstance, connInstance };
       };
 
-      // Select bundle (supports exceptions / SIMD if available)
-      const bundle = await duckdb.selectBundle(LOCAL_BUNDLES as any);
-
-      // Use duckdb.createWorker or blob fetch to avoid CORS worker instantiation errors
-      let worker: Worker;
       try {
-        worker = await duckdb.createWorker(bundle.mainWorker!);
-      } catch {
-        const workerRes = await fetch(bundle.mainWorker!);
-        const workerBlob = await workerRes.blob();
-        worker = new Worker(URL.createObjectURL(workerBlob));
+        // Define local self-hosted bundles with absolute URLs (required by blob workers)
+        const baseUrl = window.location.origin;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const LOCAL_BUNDLES: Record<string, any> = {
+          mvp: {
+            mainModule: `${baseUrl}/duckdb/duckdb-mvp.wasm`,
+            mainWorker: `${baseUrl}/duckdb/duckdb-browser-mvp.worker.js`,
+          },
+          eh: {
+            mainModule: `${baseUrl}/duckdb/duckdb-eh.wasm`,
+            mainWorker: `${baseUrl}/duckdb/duckdb-browser-eh.worker.js`,
+          },
+        };
+
+        const bundle = await duckdb.selectBundle(LOCAL_BUNDLES as any);
+        const res = await instantiateBundle(bundle);
+        database = res.dbInstance;
+        connection = res.connInstance;
+      } catch (localErr) {
+        console.warn("Local DuckDB bundle initialization failed, falling back to jsDelivr CDN:", localErr);
+        const bundles = duckdb.getJsDelivrBundles();
+        const bundle = await duckdb.selectBundle(bundles);
+        const res = await instantiateBundle(bundle);
+        database = res.dbInstance;
+        connection = res.connInstance;
       }
-
-      const logger = new duckdb.ConsoleLogger();
-      const database = new duckdb.AsyncDuckDB(logger, worker);
-
-      await database.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      const connection = await database.connect();
 
       // Automatically configure R2 if previously saved in localStorage
       try {

@@ -14,7 +14,10 @@ RUN npm run build
 
 # Copy only standalone server to new image
 FROM node:20-alpine
+RUN apk add --no-cache curl
 WORKDIR /app
+ENV HOSTNAME="0.0.0.0"
+ENV PORT=3000
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/static ./.next/static

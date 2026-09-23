@@ -175,7 +175,7 @@ const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           schema,
         });
         tooltipExtension = functionTooltip(sqliteFunctionList);
-      } else if (dialect === "postgres") {
+      } else if (dialect === "postgres" || dialect === "duckdb") {
         sqlDialect = sql({
           dialect: PostgresDialect,
           schema,

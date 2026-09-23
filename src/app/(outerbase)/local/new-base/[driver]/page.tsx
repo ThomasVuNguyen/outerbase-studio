@@ -64,7 +64,9 @@ export default function LocalNewBasePage() {
     router.replace(
       newConnection.content.driver === "sqlite-filehandler"
         ? `/playground/client?s=${newConnection.id}`
-        : `/client/s/${newConnection.content.driver ?? "turso"}?p=${newConnection.id}`
+        : newConnection.content.driver === "duckdb"
+          ? `/playground/duckdb`
+          : `/client/s/${newConnection.content.driver ?? "turso"}?p=${newConnection.id}`
     );
   }, [template, value, router]);
 

@@ -50,7 +50,7 @@ export default function ClientPageBody() {
       return new StudioExtensionManager(createMySQLExtensions());
     } else if (dialet === "sqlite") {
       return new StudioExtensionManager(createSQLiteExtensions());
-    } else if (dialet === "postgres") {
+    } else if (dialet === "postgres" || dialet === "duckdb") {
       return new StudioExtensionManager(createPostgreSQLExtensions());
     }
 

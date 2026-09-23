@@ -96,7 +96,9 @@ export default function QueryWindow({
     const timer = setTimeout(() => {
       setPlaceholders((prev) => {
         const newPlaceholders: Record<string, string> = {};
-        const token = tokenizeSql(code, databaseDriver.getFlags().dialect);
+        const rawDialect = databaseDriver.getFlags().dialect;
+        const tokenDialect = rawDialect === "duckdb" ? "postgres" : rawDialect;
+        const token = tokenizeSql(code, tokenDialect);
 
         const foundPlaceholders = token
           .filter((t) => t.type === "PLACEHOLDER")
@@ -166,9 +168,11 @@ export default function QueryWindow({
       setQueryTabIndex(0);
 
       for (let i = 0; i < finalStatements.length; i++) {
+        const rawDialect = databaseDriver.getFlags().dialect;
+        const tokenDialect = rawDialect === "duckdb" ? "postgres" : rawDialect;
         const token = tokenizeSql(
           finalStatements[i],
-          databaseDriver.getFlags().dialect
+          tokenDialect
         );
 
         // Defensive measurement

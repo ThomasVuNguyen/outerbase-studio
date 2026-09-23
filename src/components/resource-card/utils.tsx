@@ -51,6 +51,7 @@ export function getDatabaseIcon(type: string) {
   if (type === "libsql" || type === "turso") return TursoIcon;
   if (type === "rqlite") return RqliteIcon;
   if (type === "sqlite") return SQLiteIcon;
+  if (type === "duckdb" || type === "motherduck") return Database;
   if (type === "board") return ChartBar;
 
   return Database;

@@ -10,6 +10,7 @@ import {
   TursoIcon,
   ValTownIcon,
 } from "@/components/resource-card/icon";
+import { Database } from "@phosphor-icons/react";
 import { NewResourceType } from "./new-resource-button";
 
 export function getCreateResourceTypeList(
@@ -67,6 +68,11 @@ export function getCreateResourceTypeList(
       name: "SQLite",
       icon: SQLiteIcon,
       href: workspaceId ? "" : "/local/new-base/sqlite-filehandler",
+    },
+    {
+      name: "DuckDB",
+      icon: Database,
+      href: workspaceId ? "" : "/playground/duckdb",
     },
     {
       name: "val.town",

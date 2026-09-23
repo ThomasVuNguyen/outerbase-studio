@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CaretDown } from "@phosphor-icons/react";
+import { CaretDown, Database } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -32,7 +32,9 @@ export default function LocalConnectionPage() {
         href:
           conn.content.driver === "sqlite-filehandler"
             ? `/playground/client?s=${conn.id}`
-            : `/client/s/${conn.content.driver ?? "turso"}?p=${conn.id}`,
+            : conn.content.driver === "duckdb"
+              ? `/playground/duckdb`
+              : `/client/s/${conn.content.driver ?? "turso"}?p=${conn.id}`,
         name: conn.content.name,
         lastUsed: conn.updated_at,
         id: conn.id,
@@ -160,6 +162,19 @@ export default function LocalConnectionPage() {
               </span>
             </div>
           </button>
+
+          <Link
+            href="/playground/duckdb"
+            className="bg-background dark:bg-secondary flex cursor-pointer items-center gap-2 rounded-lg border p-4"
+          >
+            <Database className="h-10 w-10" />
+            <div className="flex flex-col gap-1 text-left">
+              <span className="text-base font-bold">DuckDB Playground</span>
+              <span className="text-sm">
+                Launch in-memory DuckDB on browser
+              </span>
+            </div>
+          </Link>
         </div>
 
         <ResourceItemList

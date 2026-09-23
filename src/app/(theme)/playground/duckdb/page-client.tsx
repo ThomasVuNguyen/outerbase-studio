@@ -24,6 +24,7 @@ const DUCKDB_FILE_EXTENSIONS = ".duckdb,.db,.parquet,.csv,.json";
 
 export default function PlaygroundEditorBody() {
   const [databaseLoading, setDatabaseLoading] = useState(true);
+  const [initError, setInitError] = useState<string>("");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [db, setDb] = useState<any>();
@@ -46,12 +47,32 @@ export default function PlaygroundEditorBody() {
     async function init() {
       const duckdb = await import("@duckdb/duckdb-wasm");
 
-      // Select the best bundle for this browser
-      const bundles = duckdb.getJsDelivrBundles();
-      const bundle = await duckdb.selectBundle(bundles);
+      // Define local self-hosted bundles (served from /duckdb/)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const LOCAL_BUNDLES: Record<string, any> = {
+        mvp: {
+          mainModule: "/duckdb/duckdb-mvp.wasm",
+          mainWorker: "/duckdb/duckdb-browser-mvp.worker.js",
+        },
+        eh: {
+          mainModule: "/duckdb/duckdb-eh.wasm",
+          mainWorker: "/duckdb/duckdb-browser-eh.worker.js",
+        },
+      };
 
-      // Create a worker and the database instance
-      const worker = new Worker(bundle.mainWorker!);
+      // Select bundle (supports exceptions / SIMD if available)
+      const bundle = await duckdb.selectBundle(LOCAL_BUNDLES as any);
+
+      // Use duckdb.createWorker or blob fetch to avoid CORS worker instantiation errors
+      let worker: Worker;
+      try {
+        worker = await duckdb.createWorker(bundle.mainWorker!);
+      } catch {
+        const workerRes = await fetch(bundle.mainWorker!);
+        const workerBlob = await workerRes.blob();
+        worker = new Worker(URL.createObjectURL(workerBlob));
+      }
+
       const logger = new duckdb.ConsoleLogger();
       const database = new duckdb.AsyncDuckDB(logger, worker);
 
@@ -86,7 +107,10 @@ export default function PlaygroundEditorBody() {
 
     init().catch((err) => {
       console.error("Failed to initialize DuckDB WASM:", err);
-      if (!cancelled) setDatabaseLoading(false);
+      if (!cancelled) {
+        setInitError(err?.message ? String(err.message) : String(err));
+        setDatabaseLoading(false);
+      }
     });
 
     return () => {
@@ -225,12 +249,17 @@ export default function PlaygroundEditorBody() {
     }
 
     return (
-      <div className="p-4">
-        <h1 className="mb-2 text-2xl font-bold">Failed to load DuckDB</h1>
-        <p>Something went wrong initializing DuckDB WASM.</p>
+      <div className="p-4 max-w-lg">
+        <h1 className="mb-2 text-2xl font-bold text-destructive">Failed to load DuckDB</h1>
+        <p className="text-muted-foreground mb-3">Something went wrong initializing DuckDB WASM.</p>
+        {initError && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm p-3 rounded font-mono break-words">
+            {initError}
+          </div>
+        )}
       </div>
     );
-  }, [databaseLoading, driver, extensions, agentDriver]);
+  }, [databaseLoading, driver, extensions, agentDriver, initError]);
 
   return (
     <>

@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit --skipLibCheck",
     "format": "prettier --check .",
     "lint": "next lint",
+    "postinstall": "mkdir -p public/duckdb && cp -f node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-*.worker.js public/duckdb/ 2>/dev/null || true && cp -f node_modules/@duckdb/duckdb-wasm/dist/duckdb-*.wasm public/duckdb/ 2>/dev/null || true",
     "dialect": "node build-dialect.js",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"

@@ -11,12 +11,14 @@ import { createStandardExtensions } from "@/core/standard-extension";
 import DuckDBWasmDriver from "@/drivers/database/duckdb-wasm";
 import { useAvailableAIAgents } from "@/lib/ai-agent-storage";
 import {
+  Cloud,
   FolderOpenIcon,
   LucideFile,
   LucideLoader,
   RefreshCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { R2ConfigDialog } from "./r2-config-dialog";
 
 const DUCKDB_FILE_EXTENSIONS = ".duckdb,.db,.parquet,.csv,.json";
 
@@ -30,6 +32,8 @@ export default function PlaygroundEditorBody() {
   const [driver, setDriver] = useState<DuckDBWasmDriver>();
 
   const [fileName, setFilename] = useState("");
+
+  const [r2Open, setR2Open] = useState(false);
 
   const agentDriver = useAvailableAIAgents(driver);
 
@@ -53,6 +57,24 @@ export default function PlaygroundEditorBody() {
 
       await database.instantiate(bundle.mainModule, bundle.pthreadWorker);
       const connection = await database.connect();
+
+      // Automatically configure R2 if previously saved in localStorage
+      try {
+        const saved = localStorage.getItem("duckdb_r2_config");
+        if (saved) {
+          const { accountId, accessKeyId, secretAccessKey } = JSON.parse(saved);
+          if (accountId && accessKeyId && secretAccessKey) {
+            const endpoint = `${accountId.trim()}.r2.cloudflarestorage.com`;
+            await connection.query(`SET s3_endpoint='${endpoint}'`);
+            await connection.query(`SET s3_access_key_id='${accessKeyId.trim()}'`);
+            await connection.query(`SET s3_secret_access_key='${secretAccessKey.trim()}'`);
+            await connection.query(`SET s3_url_style='path'`);
+            await connection.query(`SET s3_use_ssl=true`);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not auto-restore R2 credentials:", err);
+      }
 
       if (!cancelled) {
         setDb(database);
@@ -233,6 +255,13 @@ export default function PlaygroundEditorBody() {
 
             <ToolbarSeparator />
             <ToolbarButton
+              text="Connect R2"
+              icon={<Cloud className="h-4 w-4 text-orange-500" />}
+              onClick={() => setR2Open(true)}
+            />
+
+            <ToolbarSeparator />
+            <ToolbarButton
               text="Reset"
               icon={<RefreshCcw className="h-4 w-4" />}
               onClick={onResetDatabase}
@@ -241,6 +270,17 @@ export default function PlaygroundEditorBody() {
         </div>
         <div className="flex-1 overflow-hidden">{dom}</div>
       </div>
+
+      <R2ConfigDialog
+        open={r2Open}
+        onOpenChange={setR2Open}
+        conn={conn}
+        onConfigured={() => {
+          if (driver) {
+            driver.reload(conn);
+          }
+        }}
+      />
     </>
   );
 }

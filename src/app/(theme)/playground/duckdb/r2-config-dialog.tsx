@@ -33,31 +33,42 @@ export async function configureDuckDBR2(
   const { accountId, accessKeyId, secretAccessKey } = config;
   const endpoint = `${accountId.trim()}.r2.cloudflarestorage.com`;
 
-  // First try DuckDB's modern Secrets Manager if supported
+  // Use DuckDB Secrets Manager (part of core, not extension-dependent).
+  // Try TYPE S3 with R2-compatible settings — this is the recommended approach
+  // and works in DuckDB-WASM without needing the native httpfs extension.
   try {
     await conn.query(`
-      CREATE OR REPLACE SECRET r2_secret (
-        TYPE R2,
+      CREATE OR REPLACE SECRET r2_connection (
+        TYPE S3,
         KEY_ID '${accessKeyId.trim()}',
         SECRET '${secretAccessKey.trim()}',
-        ACCOUNT_ID '${accountId.trim()}'
+        ENDPOINT '${endpoint}',
+        URL_STYLE 'path',
+        USE_SSL true
       );
     `);
-  } catch {
-    // If TYPE R2 secret is not registered, continue to standard S3 settings
+    return; // Success — no need for legacy SET commands
+  } catch (e) {
+    console.warn("CREATE SECRET (TYPE S3) failed, trying legacy SET commands:", e);
   }
 
-  // Set standard S3 parameters supported by DuckDB-WASM
-  await conn.query(`SET s3_endpoint='${endpoint}'`);
-  await conn.query(`SET s3_access_key_id='${accessKeyId.trim()}'`);
-  await conn.query(`SET s3_secret_access_key='${secretAccessKey.trim()}'`);
-  await conn.query(`SET s3_use_ssl=true`);
+  // Fallback: try each SET individually. In DuckDB-WASM, some s3_* parameters
+  // are extension-only (from httpfs) and will throw "not found after autoloading".
+  // We wrap each one so a failure in one doesn't block the others.
+  const settings: [string, string][] = [
+    ["s3_endpoint", `'${endpoint}'`],
+    ["s3_access_key_id", `'${accessKeyId.trim()}'`],
+    ["s3_secret_access_key", `'${secretAccessKey.trim()}'`],
+    ["s3_use_ssl", "true"],
+    ["s3_url_style", "'path'"],
+  ];
 
-  // Optional parameter: only exists if native httpfs extension is loaded, safely try/catch
-  try {
-    await conn.query(`SET s3_url_style='path'`);
-  } catch {
-    // Expected in DuckDB-Wasm where s3_url_style is not a recognized standalone parameter
+  for (const [key, value] of settings) {
+    try {
+      await conn.query(`SET ${key}=${value}`);
+    } catch (e) {
+      console.warn(`SET ${key} failed (likely extension-only in WASM):`, e);
+    }
   }
 }
 

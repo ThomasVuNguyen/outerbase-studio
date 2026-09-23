@@ -18,7 +18,7 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { R2ConfigDialog } from "./r2-config-dialog";
+import { R2ConfigDialog, configureDuckDBR2 } from "./r2-config-dialog";
 
 const DUCKDB_FILE_EXTENSIONS = ".duckdb,.db,.parquet,.csv,.json";
 
@@ -104,12 +104,11 @@ export default function PlaygroundEditorBody() {
         if (saved) {
           const { accountId, accessKeyId, secretAccessKey } = JSON.parse(saved);
           if (accountId && accessKeyId && secretAccessKey) {
-            const endpoint = `${accountId.trim()}.r2.cloudflarestorage.com`;
-            await connection.query(`SET s3_endpoint='${endpoint}'`);
-            await connection.query(`SET s3_access_key_id='${accessKeyId.trim()}'`);
-            await connection.query(`SET s3_secret_access_key='${secretAccessKey.trim()}'`);
-            await connection.query(`SET s3_url_style='path'`);
-            await connection.query(`SET s3_use_ssl=true`);
+            await configureDuckDBR2(connection, {
+              accountId: accountId.trim(),
+              accessKeyId: accessKeyId.trim(),
+              secretAccessKey: secretAccessKey.trim(),
+            });
           }
         }
       } catch (err) {

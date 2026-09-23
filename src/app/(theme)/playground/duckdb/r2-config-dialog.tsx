@@ -25,6 +25,42 @@ interface R2ConfigDialogProps {
 
 const STORAGE_KEY = "duckdb_r2_config";
 
+export async function configureDuckDBR2(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  conn: any,
+  config: { accountId: string; accessKeyId: string; secretAccessKey: string }
+) {
+  const { accountId, accessKeyId, secretAccessKey } = config;
+  const endpoint = `${accountId.trim()}.r2.cloudflarestorage.com`;
+
+  // First try DuckDB's modern Secrets Manager if supported
+  try {
+    await conn.query(`
+      CREATE OR REPLACE SECRET r2_secret (
+        TYPE R2,
+        KEY_ID '${accessKeyId.trim()}',
+        SECRET '${secretAccessKey.trim()}',
+        ACCOUNT_ID '${accountId.trim()}'
+      );
+    `);
+  } catch {
+    // If TYPE R2 secret is not registered, continue to standard S3 settings
+  }
+
+  // Set standard S3 parameters supported by DuckDB-WASM
+  await conn.query(`SET s3_endpoint='${endpoint}'`);
+  await conn.query(`SET s3_access_key_id='${accessKeyId.trim()}'`);
+  await conn.query(`SET s3_secret_access_key='${secretAccessKey.trim()}'`);
+  await conn.query(`SET s3_use_ssl=true`);
+
+  // Optional parameter: only exists if native httpfs extension is loaded, safely try/catch
+  try {
+    await conn.query(`SET s3_url_style='path'`);
+  } catch {
+    // Expected in DuckDB-Wasm where s3_url_style is not a recognized standalone parameter
+  }
+}
+
 export function R2ConfigDialog({
   open,
   onOpenChange,
@@ -65,14 +101,11 @@ export function R2ConfigDialog({
 
     setSaving(true);
     try {
-      const endpoint = `${accountId.trim()}.r2.cloudflarestorage.com`;
-
-      // Configure DuckDB S3 / R2 parameters
-      await conn.query(`SET s3_endpoint='${endpoint}'`);
-      await conn.query(`SET s3_access_key_id='${accessKeyId.trim()}'`);
-      await conn.query(`SET s3_secret_access_key='${secretAccessKey.trim()}'`);
-      await conn.query(`SET s3_url_style='path'`);
-      await conn.query(`SET s3_use_ssl=true`);
+      await configureDuckDBR2(conn, {
+        accountId: accountId.trim(),
+        accessKeyId: accessKeyId.trim(),
+        secretAccessKey: secretAccessKey.trim(),
+      });
 
       localStorage.setItem(
         STORAGE_KEY,
